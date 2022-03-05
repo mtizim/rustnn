@@ -1,0 +1,10 @@
+[package]
+name = "nn1r"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ndarray = { version = "0.15.4", features = ["rayon"] }
+num = "0.4.0"
+itertools = "0.10.3"
+csv = "1.1.6"
