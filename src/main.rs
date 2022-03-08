@@ -3,12 +3,19 @@ use ndarray::{arr1, arr2, Array1, Array2};
 use num::Float;
 
 type Activation = fn(f64) -> f64;
+type Gradient = fn(f64) -> f64;
 
 pub struct MultilayerPerceptron {
     pub weights: Vec<Array2<f64>>,
     pub biases: Vec<Array1<f64>>,
     pub shape: Vec<u16>,
-    pub activations: Vec<Activation>,
+    pub activations: Vec<NeuronActivation>,
+    pub eps: f64,
+}
+
+pub struct NeuronActivation {
+    pub activation: Activation,
+    pub gradient: Gradient,
 }
 
 #[inline(always)]
@@ -17,10 +24,32 @@ fn sigmoid<F: Float>(f: F) -> F {
     let e = F::from(E).unwrap();
     F::one() / (F::one() + e.powf(-f))
 }
-
+#[inline(always)]
+fn sigmoid_grad<F: Float>(f: F) -> F {
+    f * (F::one() - f)
+}
 #[inline(always)]
 fn linear<F: Float>(f: F) -> F {
     f
+}
+#[inline(always)]
+fn linear_grad<F: Float>(f: F) -> F {
+    F::one()
+}
+
+impl NeuronActivation {
+    pub fn sigmoid() -> NeuronActivation {
+        NeuronActivation {
+            activation: sigmoid,
+            gradient: sigmoid_grad,
+        }
+    }
+    pub fn linear() -> NeuronActivation {
+        NeuronActivation {
+            activation: linear,
+            gradient: linear_grad,
+        }
+    }
 }
 
 impl MultilayerPerceptron {
@@ -28,7 +57,7 @@ impl MultilayerPerceptron {
         shape: Vec<u16>,
         weights: Vec<Array2<f64>>,
         biases: Vec<Array1<f64>>,
-        activations: Vec<Activation>,
+        activations: Vec<NeuronActivation>,
     ) -> MultilayerPerceptron {
         assert!(
             weights.len() == activations.len()
@@ -52,6 +81,7 @@ impl MultilayerPerceptron {
             biases,
             shape,
             activations,
+            eps: 0.001,
         }
     }
 
@@ -59,9 +89,61 @@ impl MultilayerPerceptron {
         let mut x_layer: Array1<f64> = x;
 
         for (w, b, activation) in izip!(&self.weights, &self.biases, &self.activations) {
-            x_layer = (w.dot(&x_layer) + b).mapv(activation);
+            x_layer = (w.dot(&x_layer) + b).mapv(activation.activation);
         }
         x_layer
+    }
+
+    pub fn train(&self, x: Vec<Array1<f64>>, y: Vec<Array1<f64>>) -> Result<(), > {
+        let first = x[0].to_owned();
+        // TODO batch this whole thing (add weight deltas together)
+
+        // forward propagation
+        let mut outputs: Vec<Array1<f64>> = vec![first];
+        let mut grads: Vec<Array1<f64>> = Vec::new();
+
+        let weights = &self.weights;
+        let biases = &self.biases;
+        let activations = &self.activations;
+        let eps = &self.eps;
+
+        {
+            for layeridx in 0..self.shape.len() - 1 {
+                let previouslayer = &outputs[layeridx];
+                let out = weights[layeridx].dot(previouslayer) + biases[layeridx].to_owned();
+
+                let currentlayer = out.mapv(activations[layeridx].activation);
+                let grad = currentlayer.mapv(activations[layeridx].gradient);
+
+                outputs.push(currentlayer);
+                grads.push(grad);
+            }
+        }
+
+        // TODO calculate errors
+        let last_layer_errs = arr1(&[1.0, 2.0, 3.0]);
+
+        // backprop
+        {
+            let mut current_layer_errs: Array1<f64> = last_layer_errs.to_owned();
+
+            let mut weight_deltas: Vec<Array2<f64>>;
+            let mut bias_deltas: Vec<Array1<f64>>;
+
+            for layeridx in self.shape.len() - 1..0 {
+                // errs =  weights @ curr layer errs * grads
+                let  weight_deltas_ = -eps * (grads[layeridx].to_owned().into_dimensionality()?).dot(&current_layer_errs);
+                weight_deltas.push(weight_deltas_);
+                // -eps * current layer grad * prev layer errs
+                let bias_deltas_ = -eps * current_layer_errs;
+                bias_deltas.push(bias_deltas_);
+
+                current_layer_errs = weights[layeridx].dot(&current_layer_errs) * (grads[layeridx].to_owned());
+
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -88,6 +170,8 @@ fn mse(ypred: Array1<f64>, y: Array1<f64>) -> f64 {
 }
 
 fn main() {
+    let sigmoid = NeuronActivation::sigmoid();
+    let linear = NeuronActivation::linear();
     {
         let (mut xs, ys) = read_data("steps-large-test.csv");
 
@@ -97,7 +181,7 @@ fn main() {
             arr2(&[[80.0, 80.0, 80.0, 0.0, 0.0]]),
         ];
         let biases = vec![arr1(&[150.0, -150.0, -450.0, 0.0, 0.0]), arr1(&[-80.0])];
-        let activations: Vec<Activation> = vec![sigmoid, linear];
+        let activations = vec![sigmoid, linear];
 
         let mlp = MultilayerPerceptron::new(shape, weights, biases, activations);
         xs.par_mapv_inplace(|x| mlp.predict(arr1(&[x]))[0]);
@@ -106,6 +190,8 @@ fn main() {
 
         println!("MSE for steps-large: {mse}"); // MSE for steps-large: 7.029725723660864
     }
+    let sigmoid = NeuronActivation::sigmoid();
+    let linear = NeuronActivation::linear();
     {
         let (mut xs, ys) = read_data("square-simple-test.csv");
 
@@ -115,7 +201,7 @@ fn main() {
             arr2(&[[-663.0, 0.0, 0.0, 0.0, 700.0]]),
         ];
         let biases = vec![arr1(&[3.0, 0.0, 0.0, 0.0, -3.1]), arr1(&[475.0])];
-        let activations: Vec<Activation> = vec![sigmoid, linear];
+        let activations = vec![sigmoid, linear];
 
         let mlp = MultilayerPerceptron::new(shape, weights, biases, activations);
         xs.par_mapv_inplace(|x| mlp.predict(arr1(&[x]))[0]);
