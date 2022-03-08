@@ -8,3 +8,5 @@ ndarray = { version = "0.15.4", features = ["rayon"] }
 num = "0.4.0"
 itertools = "0.10.3"
 csv = "1.1.6"
+ndarray-linalg = { version = "0.14.1", features = ["openblas-static"] }
+ndarray-rand = "0.14.0"
