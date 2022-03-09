@@ -89,7 +89,7 @@ impl MultilayerPerceptron {
             biases,
             shape,
             activations,
-            eps: 0.0001,
+            eps: 0.01,
         }
     }
 
@@ -129,7 +129,7 @@ impl MultilayerPerceptron {
             }
         }
 
-        let errs = outputs[self.shape.len() - 1].to_owned() - firsty;
+        let errs = outputs[self.shape.len()-1].to_owned() - firsty;
         let mut current_layer_errs: Array1<f64> = errs * (grads[self.shape.len() - 2].to_owned());
 
         // backprop
@@ -138,16 +138,12 @@ impl MultilayerPerceptron {
             let mut bias_deltas: Vec<Array1<f64>> = Vec::new();
 
             for layeridx in (0..=self.shape.len() - 2).rev() {
-                let outs2d = into_row(outputs[layeridx].to_owned());
                 let errs2d = into_col(current_layer_errs.to_owned());
+                let outs2d = into_col(outputs[layeridx].to_owned());
 
-                let gsh = arr1(outs2d.shape());
-                let esh = arr1(errs2d.shape());
-                let dsh = arr1((errs2d).dot(&outs2d).t().shape());
-                let wsh = arr1(weights[layeridx].shape());
-                println!("G,e,d {gsh}, {esh}, {dsh}, {wsh}");
 
-                let weight_deltas_ = -eps * (errs2d).dot(&outs2d).to_owned();
+
+                let weight_deltas_ = -eps * (errs2d).dot(&outs2d.t()).to_owned();
 
                 weight_deltas.push(weight_deltas_);
                 let bias_deltas_ = -eps * current_layer_errs.to_owned();
@@ -156,7 +152,6 @@ impl MultilayerPerceptron {
                 if layeridx == 0 {
                     break;
                 }
-                println!("did run loop");
                 current_layer_errs =
                     current_layer_errs.dot(&weights[layeridx]) * (grads[layeridx - 1].to_owned());
             }
@@ -167,15 +162,12 @@ impl MultilayerPerceptron {
 
         // update model
         for layeridx in 0..self.shape.len() - 1 {
-            let w = self.weights[layeridx].to_owned();
-            let d = self.biases[layeridx].to_owned();
-            println!("wd: {w}, {d}");
             self.weights[layeridx] =
                 self.weights[layeridx].to_owned() + weight_deltas[layeridx].to_owned();
             self.biases[layeridx] =
                 self.biases[layeridx].to_owned() + bias_deltas[layeridx].to_owned();
         }
-        println!("update");
+        // println!("update");
 
         Ok(())
     }
@@ -222,33 +214,32 @@ fn main() {
                 .expect("Pls dont fail");
         }
         let first = mlp.predict(arr1(&[3.]))[0];
-        println!("Got {first}, actual 6");
     }
     {
         let shape = vec![2, 1];
-        let activations = vec![NeuronActivation::linear()];
+        let activations = vec![
+            // NeuronActivation::linear(),
+            NeuronActivation::linear(),
+        ];
         let mut mlp = MultilayerPerceptron::new(shape, activations);
 
+        for _ in 0..5 {
+            mlp.train(vec![arr1(&[100.,120.])], vec![arr1(&[220.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[10.,50.])], vec![arr1(&[60.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[-2.,4.])], vec![arr1(&[2.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[-100.,-100.])], vec![arr1(&[-200.])])
+                .expect("Pls dont fail");
 
-
-        for _ in 0..300 {
-            // mlp.train(vec![arr1(&[x])], vec![arr1(&[target])])
-            //     .expect("Pls dont fail");
-            // mlp.train(vec![arr1(&[40.])], vec![arr1(&[80.])])
-            //     .expect("Pls dont fail");
-            mlp.train(vec![arr1(&[1., 0.])], vec![arr1(&[1.])])
-                .expect("Pls dont fail");
-            mlp.train(vec![arr1(&[20., 0.])], vec![arr1(&[20.])])
-                .expect("Pls dont fail");
-            mlp.train(vec![arr1(&[0.1, 0.])], vec![arr1(&[0.1])])
-                .expect("Pls dont fail");
-            mlp.train(vec![arr1(&[5., 0.])], vec![arr1(&[5.])])
-                .expect("Pls dont fail");
-            mlp.train(vec![arr1(&[0.4, 0.])], vec![arr1(&[0.4])])
-                .expect("Pls dont fail");
         }
-        let first = mlp.predict(arr1(&[3., 0.]))[0];
-        println!("Got {first}, actual 6");
+        let first = mlp.predict(arr1(&[50.,10.]));
+
+        let w = mlp.weights[0].to_owned();
+        let b = mlp.biases[0].to_owned();
+
+        println!("Got {first}, w: {w},b: {b}");
     }
     // {
     //     let (mut xs, ys) = read_data("steps-large-test.csv");
