@@ -205,21 +205,15 @@ fn mse(ypred: Array1<f64>, y: Array1<f64>) -> f64 {
 
 fn main() {
     {
-        let shape = vec![1, 1];
-        let activations = vec![NeuronActivation::linear()];
+        let shape = vec![1, 2, 3, 1];
+        let activations = vec![
+            NeuronActivation::linear(),
+            NeuronActivation::linear(),
+            NeuronActivation::linear(),
+        ];
         let mut mlp = MultilayerPerceptron::new(shape, activations);
 
-        let x = 2.;
-        let target = 4.;
-
-        let first = mlp.predict(arr1(&[x]))[0];
-        println!("Got {first}, actual {target}");
-
-        for _ in 0..300 {
-            // mlp.train(vec![arr1(&[x])], vec![arr1(&[target])])
-            //     .expect("Pls dont fail");
-            // mlp.train(vec![arr1(&[40.])], vec![arr1(&[80.])])
-            //     .expect("Pls dont fail");
+        for _ in 0..1 {
             mlp.train(vec![arr1(&[1.])], vec![arr1(&[2.])])
                 .expect("Pls dont fail");
             mlp.train(vec![arr1(&[20.])], vec![arr1(&[40.])])
@@ -228,6 +222,32 @@ fn main() {
                 .expect("Pls dont fail");
         }
         let first = mlp.predict(arr1(&[3.]))[0];
+        println!("Got {first}, actual 6");
+    }
+    {
+        let shape = vec![2, 1];
+        let activations = vec![NeuronActivation::linear()];
+        let mut mlp = MultilayerPerceptron::new(shape, activations);
+
+
+
+        for _ in 0..300 {
+            // mlp.train(vec![arr1(&[x])], vec![arr1(&[target])])
+            //     .expect("Pls dont fail");
+            // mlp.train(vec![arr1(&[40.])], vec![arr1(&[80.])])
+            //     .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[1., 0.])], vec![arr1(&[1.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[20., 0.])], vec![arr1(&[20.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[0.1, 0.])], vec![arr1(&[0.1])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[5., 0.])], vec![arr1(&[5.])])
+                .expect("Pls dont fail");
+            mlp.train(vec![arr1(&[0.4, 0.])], vec![arr1(&[0.4])])
+                .expect("Pls dont fail");
+        }
+        let first = mlp.predict(arr1(&[3., 0.]))[0];
         println!("Got {first}, actual 6");
     }
     // {
