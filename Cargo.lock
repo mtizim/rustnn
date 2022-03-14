@@ -317,6 +317,7 @@ dependencies = [
  "ndarray-linalg",
  "ndarray-rand",
  "num",
+ "rayon",
 ]
 
 [[package]]
