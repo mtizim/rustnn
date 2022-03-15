@@ -105,9 +105,8 @@ impl MultilayerPerceptron {
 
         {
             for layeridx in 0..self.shape.len() - 1 {
-                let previouslayer = &outputs[layeridx];
-                let out = weights[layeridx].t().dot(previouslayer) + &biases[layeridx];
-
+                let out = weights[layeridx].t().dot(&outputs[layeridx]) + &biases[layeridx];
+                // TODO map in place, without copying
                 let currentlayer = out.mapv(activations[layeridx].activation);
                 let grad = currentlayer.mapv(activations[layeridx].gradient);
 
@@ -126,8 +125,6 @@ impl MultilayerPerceptron {
             let errs2d = into_col(current_layer_errs.to_owned());
             let outs2d = into_col(outputs[layeridx].to_owned());
             let weight_deltas_ = outs2d.dot(&errs2d.t());
-            println!("{layeridx}\nerrs {errs2d} \n outs\n {outs2d} \n dp\n ");
-            dbg!(&weight_deltas);
             weight_deltas.push(weight_deltas_);
 
             let bias_deltas_ = flatten(errs2d);
@@ -147,22 +144,54 @@ impl MultilayerPerceptron {
         let batchsize = batch.x.len();
         assert!(batchsize == batch.y.len());
 
-        let mut updates = Vec::new();
-        batch
+        let layercount = &self.shape.len() - 1;
+
+        // async update calculation
+        // it's just a map(to updates) - reduce(sum), in principle,
+        //  but the fold makes it a bit faster
+        let update = batch
             .x
             .into_par_iter()
             .zip(batch.y.into_par_iter())
-            .map(|(x, y)| self.backprop_once(x, y)) //todo use fold here
-            .collect_into_vec(&mut updates);
+            .fold(
+                || None,
+                |o_cumupdate, (x, y)| {
+                    let update = self.backprop_once(x, y);
+                    match o_cumupdate {
+                        None => Some(update),
+                        Some(mut cumupdate) => {
+                            for layer in 0..layercount {
+                                cumupdate.0[layer] += &update.0[layer];
+                                cumupdate.1[layer] += &update.1[layer];
+                            }
+                            Some(cumupdate)
+                        }
+                    }
+                },
+            )
+            .reduce(
+                || None,
+                |o_cumupdate, o_subcumupdate| {
+                    let subcumupdate = o_subcumupdate.unwrap();
+                    match o_cumupdate {
+                        None => Some(subcumupdate),
+                        Some(mut cumupdate) => {
+                            for layer in 0..layercount {
+                                cumupdate.0[layer] += &subcumupdate.0[layer];
+                                cumupdate.1[layer] += &subcumupdate.1[layer];
+                            }
+                            Some(cumupdate)
+                        }
+                    }
+                },
+            )
+            .unwrap();
 
         // update model
         let eps = self.eps / (batchsize as f64);
-        for update in updates {
-            for (layeridx, (wd, bd)) in zip(update.0.into_iter(), update.1.into_iter()).enumerate()
-            {
-                self.weights[layeridx] -= &(eps * wd);
-                self.biases[layeridx] -= &(eps * bd);
-            }
+        for (layeridx, (wd, bd)) in zip(update.0.into_iter(), update.1.into_iter()).enumerate() {
+            self.weights[layeridx] -= &(eps * wd);
+            self.biases[layeridx] -= &(eps * bd);
         }
     }
 }
@@ -191,13 +220,13 @@ fn mse(ypred: Array1<f64>, y: Array1<f64>) -> f64 {
 }
 
 fn main() {
-    let (xs, ys) = read_data("square-simple-test.csv");
+    let (xs, ys) = read_data("steps-large-test.csv");
     let mut bx = Vec::new();
     let mut by = Vec::new();
     for (xs, ys) in zip(xs, ys) {
         bx.push(arr1(&[xs]));
         by.push(arr1(&[ys]));
-        break;
+        // break;
     }
     {
         let shape = vec![1, 5, 1];
@@ -208,18 +237,20 @@ fn main() {
         ];
         let mut mlp = MultilayerPerceptron::new(shape, activations);
 
-        for _ in 0..1 {
+        let n = 1000;
+        for i in 0..n {
+            println!("{i}");
             mlp.train_batch(Batch {
                 x: bx.clone(),
                 y: by.clone(),
             });
         }
-        let first = mlp.predict(arr1(&[1.22778856509831]))[0];
+        let o = mlp.predict(arr1(&[1.70698996633291]))[0];
+        println!("Got {o}");
+        println!("Expected 160");
 
-        let w = mlp.weights[0].to_owned();
-        let b = mlp.biases[0].to_owned();
-
-        println!("Got {first}");
-        println!("Expected 5.6718284527546");
+        let o = mlp.predict(arr1(&[-0.674405462690629]))[0];
+        println!("Got {o}");
+        println!("Expected -80");
     }
 }
