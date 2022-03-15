@@ -72,33 +72,17 @@ impl MultilayerPerceptron {
         for layeridx in 1..shape.len() {
             let dimfrom = shape[layeridx - 1] as usize;
             let dimto = shape[layeridx] as usize;
-            weights.push(Array::random((dimto, dimfrom), StandardNormal));
+            weights.push(Array::random((dimfrom, dimto), StandardNormal));
             biases.push(Array::random(dimto, StandardNormal));
         }
-        assert!(
-            weights.len() == activations.len()
-                && activations.len() == biases.len()
-                && biases.len() == shape.len() - 1
-        );
-        for layeridx in 0..weights.len() {
-            assert!(
-                weights[layeridx].shape()
-                    == &[shape[layeridx + 1] as usize, shape[layeridx] as usize]
-            )
-        }
-        for layeridx in 0..weights.len() {
-            assert!(
-                weights[layeridx].shape()
-                    == &[shape[layeridx + 1] as usize, shape[layeridx] as usize]
-            )
-        }
+        assert!(activations.len() == shape.len() - 1);
 
         MultilayerPerceptron {
             weights,
             biases,
             shape,
             activations,
-            eps: 0.001,
+            eps: 0.01,
         }
     }
 
@@ -106,7 +90,7 @@ impl MultilayerPerceptron {
         let mut x_layer: Array1<f64> = x;
 
         for (w, b, activation) in izip!(&self.weights, &self.biases, &self.activations) {
-            x_layer = (w.dot(&x_layer) + b).mapv(activation.activation);
+            x_layer = (w.t().dot(&x_layer) + b).mapv(activation.activation);
         }
         x_layer
     }
@@ -122,7 +106,7 @@ impl MultilayerPerceptron {
         {
             for layeridx in 0..self.shape.len() - 1 {
                 let previouslayer = &outputs[layeridx];
-                let out = weights[layeridx].dot(previouslayer) + &biases[layeridx];
+                let out = weights[layeridx].t().dot(previouslayer) + &biases[layeridx];
 
                 let currentlayer = out.mapv(activations[layeridx].activation);
                 let grad = currentlayer.mapv(activations[layeridx].gradient);
@@ -133,7 +117,7 @@ impl MultilayerPerceptron {
         }
 
         let errs = &outputs[self.shape.len() - 1] - y;
-        let mut current_layer_errs: Array1<f64> = errs * &grads[self.shape.len() - 2];
+        let mut current_layer_errs: Array1<f64> = &grads[self.shape.len() - 2] * errs;
 
         let mut weight_deltas: Vec<Array2<f64>> = Vec::new();
         let mut bias_deltas: Vec<Array1<f64>> = Vec::new();
@@ -141,8 +125,9 @@ impl MultilayerPerceptron {
         for layeridx in (0..=self.shape.len() - 2).rev() {
             let errs2d = into_col(current_layer_errs.to_owned());
             let outs2d = into_col(outputs[layeridx].to_owned());
-
-            let weight_deltas_ = errs2d.dot(&outs2d.t());
+            let weight_deltas_ = outs2d.dot(&errs2d.t());
+            println!("{layeridx}\nerrs {errs2d} \n outs\n {outs2d} \n dp\n ");
+            dbg!(&weight_deltas);
             weight_deltas.push(weight_deltas_);
 
             let bias_deltas_ = flatten(errs2d);
@@ -151,8 +136,7 @@ impl MultilayerPerceptron {
             if layeridx == 0 {
                 break;
             }
-            current_layer_errs =
-                weights[layeridx].t().dot(&current_layer_errs) * &grads[layeridx - 1];
+            current_layer_errs = weights[layeridx].dot(&current_layer_errs) * &grads[layeridx - 1];
         }
         weight_deltas.reverse();
         bias_deltas.reverse();
@@ -184,6 +168,7 @@ impl MultilayerPerceptron {
 }
 
 fn read_data<P: AsRef<std::path::Path>>(path: P) -> (Array1<f64>, Array1<f64>) {
+    // TODO return a Data struct
     let mut reader = csv::Reader::from_path(path).expect("Path existence");
 
     let mut xs: Vec<f64> = Vec::new();
@@ -206,78 +191,35 @@ fn mse(ypred: Array1<f64>, y: Array1<f64>) -> f64 {
 }
 
 fn main() {
-    {
-        let shape = vec![1, 2, 3, 1];
-        let activations = vec![
-            NeuronActivation::linear(),
-            NeuronActivation::linear(),
-            NeuronActivation::linear(),
-        ];
-        let mut mlp = MultilayerPerceptron::new(shape, activations);
-
-        mlp.train_batch(Batch {
-            x: vec![arr1(&[1.])],
-            y: vec![arr1(&[2.])],
-        });
+    let (xs, ys) = read_data("square-simple-test.csv");
+    let mut bx = Vec::new();
+    let mut by = Vec::new();
+    for (xs, ys) in zip(xs, ys) {
+        bx.push(arr1(&[xs]));
+        by.push(arr1(&[ys]));
+        break;
     }
     {
-        let shape = vec![1, 1];
-        let activations = vec![NeuronActivation::linear()];
+        let shape = vec![1, 5, 1];
+        let activations = vec![
+            NeuronActivation::sigmoid(),
+            NeuronActivation::linear(),
+            //
+        ];
         let mut mlp = MultilayerPerceptron::new(shape, activations);
 
         for _ in 0..1 {
             mlp.train_batch(Batch {
-                x: vec![
-                    arr1(&[1.]),          //
-                    arr1(&[20.]),         //
-                    arr1(&[300.]),        //
-                    arr1(&[42.]),         //
-                    arr1(&[500.]),        //
-                    arr1(&[10000000.]),   //
-                    arr1(&[-1.]),         //
-                    arr1(&[-20.]),        //
-                    arr1(&[-300.]),       //
-                    arr1(&[-42.]),        //
-                    arr1(&[-500.]),       //
-                    arr1(&[-10000000.]),  //
-                    arr1(&[-10000000.]),  //
-                    arr1(&[0.1]),         //
-                    arr1(&[0.20]),        //
-                    arr1(&[0.300]),       //
-                    arr1(&[0.42]),        //
-                    arr1(&[0.500]),       //
-                    arr1(&[0.100023000]), //
-                    arr1(&[0.10000056]),  //
-                ],
-                y: vec![
-                    arr1(&[1.]),          //
-                    arr1(&[20.]),         //
-                    arr1(&[300.]),        //
-                    arr1(&[42.]),         //
-                    arr1(&[500.]),        //
-                    arr1(&[10000000.]),   //
-                    arr1(&[-1.]),         //
-                    arr1(&[-20.]),        //
-                    arr1(&[-300.]),       //
-                    arr1(&[-42.]),        //
-                    arr1(&[-500.]),       //
-                    arr1(&[-10000000.]),  //
-                    arr1(&[-10000000.]),  //
-                    arr1(&[0.1]),         //
-                    arr1(&[0.20]),        //
-                    arr1(&[0.300]),       //
-                    arr1(&[0.42]),        //
-                    arr1(&[0.500]),       //
-                    arr1(&[0.100023000]), //
-                    arr1(&[0.10000056]),  //
-                ],
+                x: bx.clone(),
+                y: by.clone(),
             });
         }
-        let first = mlp.predict(arr1(&[100.]));
+        let first = mlp.predict(arr1(&[1.22778856509831]))[0];
 
         let w = mlp.weights[0].to_owned();
         let b = mlp.biases[0].to_owned();
 
-        println!("Got {first}, w: {w},b: {b}");
+        println!("Got {first}");
+        println!("Expected 5.6718284527546");
     }
 }
