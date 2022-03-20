@@ -11,3 +11,4 @@ itertools = "0.10.3"
 csv = "1.1.6"
 ndarray-linalg = { version = "0.14.1", features = ["openblas-static"] }
 ndarray-rand = "0.14.0"
+prgrs = "0.6.4"

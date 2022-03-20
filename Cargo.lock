@@ -317,6 +317,7 @@ dependencies = [
  "ndarray-linalg",
  "ndarray-rand",
  "num",
+ "prgrs",
  "rayon",
 ]
 
@@ -435,6 +436,15 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
+
+[[package]]
+name = "prgrs"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "655a23d5a5a5b57776f2a7c1e9cfebcec4db24faf0e1654d1d7765212a2c62e9"
+dependencies = [
+ "terminal_size",
+]
 
 [[package]]
 name = "proc-macro2"
@@ -586,6 +596,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
