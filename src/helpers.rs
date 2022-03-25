@@ -1,8 +1,8 @@
-use crate::modelstructs::Data;
+use crate::datastructs::Data;
+use crate::fmod;
 use core::iter::zip;
 use ndarray::arr1;
 use ndarray::Array1;
-
 
 pub fn read_data<P: AsRef<std::path::Path>>(path: P, startidx: usize) -> Data {
     let mut reader = csv::Reader::from_path(path).expect("Path existence");
@@ -21,14 +21,14 @@ pub fn read_data<P: AsRef<std::path::Path>>(path: P, startidx: usize) -> Data {
     Data { x: xs, y: ys }
 }
 
-pub fn mse(yhats: &Vec<Array1<f64>>, ys: &Vec<Array1<f64>>) -> f64 {
+pub fn mse(yhats: &Vec<Array1<fmod>>, ys: &Vec<Array1<fmod>>) -> fmod {
     //! assumes 1-element vectors for now
-    let errs_squared: Vec<f64> = zip(yhats, ys).map(|(yhat, y)| (yhat - y)[0]).collect();
+    let errs_squared: Vec<fmod> = zip(yhats, ys).map(|(yhat, y)| (yhat - y)[0]).collect();
 
     errs_squared
         .into_iter()
         .map(|a| a.powi(2))
         .reduce(|a, b| a + b)
         .unwrap()
-        / yhats.len() as f64
+        / yhats.len() as fmod
 }

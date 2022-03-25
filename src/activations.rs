@@ -1,7 +1,9 @@
 use num::Float;
 
-pub type Activation = fn(f64) -> f64;
-pub type Gradient = fn(f64) -> f64;
+use crate::fmod;
+
+pub type Activation = fn(fmod) -> fmod;
+pub type Gradient = fn(fmod) -> fmod;
 
 pub struct NeuronActivation {
     pub activation: Activation,
@@ -26,7 +28,6 @@ fn linear<F: Float>(f: F) -> F {
 fn linear_grad<F: Float>(_f: F) -> F {
     F::one()
 }
-
 
 impl NeuronActivation {
     pub fn sigmoid() -> NeuronActivation {

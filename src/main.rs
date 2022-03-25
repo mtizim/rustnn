@@ -1,16 +1,20 @@
 use crate::activations::*;
+use crate::datastructs::*;
 use crate::helpers::*;
-use crate::modelstructs::*;
+use crate::mlpmodel::MultilayerPerceptron;
 use ndarray::{Array, Array1, Array2};
 use ndarray_linalg::{flatten, into_col};
 
 use prgrs::Prgrs;
 
 mod activations;
+mod datastructs;
 mod helpers;
 mod mlpmodel;
-mod modelstructs;
 mod optimizers;
+
+#[allow(non_camel_case_types)]
+type fmod = f64;
 
 fn main() {
     {
@@ -23,7 +27,6 @@ fn main() {
             NeuronActivation::sigmoid(),
             NeuronActivation::linear(),
             NeuronActivation::linear(),
-            //
         ];
         let mut mlp = MultilayerPerceptron::new(shape, activations, 0.0002);
 

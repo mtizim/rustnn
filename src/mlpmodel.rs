@@ -1,4 +1,3 @@
-
 use crate::*;
 use std::iter::zip;
 
@@ -9,17 +8,28 @@ use ndarray_rand::rand_distr::StandardNormal;
 use ndarray_rand::RandomExt;
 use rayon::prelude::*;
 
+pub struct MLPGradientUpdate(
+    pub Vec<Array2<fmod>>,
+    pub Vec<Array1<fmod>>, //
+);
+pub struct MultilayerPerceptron {
+    pub weights: Vec<Array2<fmod>>,
+    pub biases: Vec<Array1<fmod>>,
+    pub shape: Vec<u16>,
+    pub activations: Vec<NeuronActivation>,
+    pub eps: fmod,
+}
 
 impl MultilayerPerceptron {
     pub fn new(
         shape: Vec<u16>,
         activations: Vec<NeuronActivation>,
-        eps: f64,
+        eps: fmod,
     ) -> MultilayerPerceptron {
         let mut rng: StdRng = SeedableRng::from_seed([0u8; 32]);
 
-        let mut weights: Vec<Array2<f64>> = Vec::new();
-        let mut biases: Vec<Array1<f64>> = Vec::new();
+        let mut weights: Vec<Array2<fmod>> = Vec::new();
+        let mut biases: Vec<Array1<fmod>> = Vec::new();
         for layeridx in 1..shape.len() {
             let dimfrom = shape[layeridx - 1] as usize;
             let dimto = shape[layeridx] as usize;
@@ -41,7 +51,7 @@ impl MultilayerPerceptron {
         }
     }
 
-    pub fn predict_sample(&self, x: &Array1<f64>) -> Array1<f64> {
+    pub fn predict_sample(&self, x: &Array1<fmod>) -> Array1<fmod> {
         let mut x_layer = x.to_owned();
 
         for (w, b, activation) in izip!(&self.weights, &self.biases, &self.activations) {
@@ -49,13 +59,13 @@ impl MultilayerPerceptron {
         }
         x_layer.to_owned()
     }
-    pub fn predict(&self, x: &Vec<Array1<f64>>) -> Vec<Array1<f64>> {
+    pub fn predict(&self, x: &Vec<Array1<fmod>>) -> Vec<Array1<fmod>> {
         x.into_iter().map(|s| self.predict_sample(s)).collect()
     }
 
-    fn backprop_once(&self, x: &Array1<f64>, y: &Array1<f64>) -> MLPGradientUpdate {
-        let mut outputs: Vec<Array1<f64>> = vec![x.to_owned()];
-        let mut grads: Vec<Array1<f64>> = Vec::new();
+    fn backprop_once(&self, x: &Array1<fmod>, y: &Array1<fmod>) -> MLPGradientUpdate {
+        let mut outputs: Vec<Array1<fmod>> = vec![x.to_owned()];
+        let mut grads: Vec<Array1<fmod>> = Vec::new();
 
         let weights = &self.weights;
         let activations = &self.activations;
@@ -74,10 +84,10 @@ impl MultilayerPerceptron {
         }
 
         let errs = &outputs[self.shape.len() - 1] - y;
-        let mut current_layer_errs: Array1<f64> = &grads[self.shape.len() - 2] * errs;
+        let mut current_layer_errs: Array1<fmod> = &grads[self.shape.len() - 2] * errs;
 
-        let mut weight_deltas: Vec<Array2<f64>> = Vec::new();
-        let mut bias_deltas: Vec<Array1<f64>> = Vec::new();
+        let mut weight_deltas: Vec<Array2<fmod>> = Vec::new();
+        let mut bias_deltas: Vec<Array1<fmod>> = Vec::new();
 
         for layeridx in (0..=self.shape.len() - 2).rev() {
             let errs2d = into_col(current_layer_errs.to_owned());
@@ -99,6 +109,7 @@ impl MultilayerPerceptron {
     }
 
     fn train_batch(&mut self, batch: &Batch) {
+        // todo shuffle batch
         let batchsize = batch.x.len();
         assert!(batchsize == batch.y.len());
 
@@ -146,7 +157,7 @@ impl MultilayerPerceptron {
             .unwrap();
 
         // update model
-        let eps = self.eps / (batchsize as f64);
+        let eps = self.eps / (batchsize as fmod);
         for (layeridx, (wd, bd)) in zip(update.0.into_iter(), update.1.into_iter()).enumerate() {
             self.weights[layeridx] -= &(eps * wd);
             self.biases[layeridx] -= &(eps * bd);
