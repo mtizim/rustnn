@@ -1,7 +1,10 @@
-use crate::{fmod, Array2};
+use crate::{fmod, mlpmodel::Gradients, Array2};
 use ndarray::Array1;
 
+pub type WeightUpdate = Vec<Array2<fmod>>;
+pub type BiasUpdate = Vec<Array1<fmod>>;
 pub type OptimizerMemory = Vec<(Vec<Array2<fmod>>, Vec<Array1<fmod>>)>;
+
 // parameters, memory, weight_gradients[layer], bias_gradients[layer]
 pub type Memoizer = fn(
     &Vec<fmod>,
@@ -15,12 +18,12 @@ pub type WeightUpdateRule = fn(
     &Vec<fmod>,
     &OptimizerMemory,
     &Vec<Array2<fmod>>, //
-) -> Vec<Array2<fmod>>;
+) -> WeightUpdate;
 pub type BiasUpdateRule = fn(
     &Vec<fmod>,
     &OptimizerMemory,
     &Vec<Array1<fmod>>, //
-) -> Vec<Array1<fmod>>;
+) -> BiasUpdate;
 
 pub struct Optimizer {
     pub parameters: Vec<fmod>,
@@ -31,7 +34,7 @@ pub struct Optimizer {
 }
 
 impl Optimizer {
-    pub fn memoize(
+    fn memoize(
         &mut self,
         weight_gradients: &Vec<Array2<fmod>>,
         bias_gradients: &Vec<Array1<fmod>>,
@@ -46,20 +49,20 @@ impl Optimizer {
         self.memory = memory;
     }
 
-    pub fn get_weight_deltas(
-        &self,
-        activations: &Array1<fmod>,
-        gradients: &Array1<fmod>,
-        errors: &Array1<fmod>,
-    ) -> Array1<fmod> {
-        activations.to_owned()
+    fn get_weight_update(&self, gradients: &Vec<Array2<fmod>>) -> WeightUpdate {
+        let rule = self.weight_update_rule;
+        rule(&self.parameters, &self.memory, gradients)
     }
-    pub fn get_bias_deltas(
-        &self,
-        activations: &Array1<fmod>,
-        gradients: &Array1<fmod>,
-        errors: &Array1<fmod>,
-    ) -> Array1<fmod> {
-        activations.to_owned()
+    fn get_bias_update(&self, gradients: &Vec<Array1<fmod>>) -> BiasUpdate {
+        let rule = self.bias_update_rule;
+        rule(&self.parameters, &self.memory, gradients)
+    }
+
+    pub fn get_updates(&mut self, gradients: &Gradients) -> (WeightUpdate, BiasUpdate) {
+        self.memoize(&gradients.0, &gradients.1);
+        (
+            self.get_weight_update(&gradients.0),
+            self.get_bias_update(&gradients.1),
+        )
     }
 }

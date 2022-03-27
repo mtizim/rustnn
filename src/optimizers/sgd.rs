@@ -1,4 +1,4 @@
-use ndarray::{arr1, arr2, Array1, Array2};
+use ndarray::{Array1, Array2};
 
 use crate::fmod;
 
@@ -18,7 +18,7 @@ fn sgd_bias_update(
     params: &Vec<fmod>,
     _mem: &OptimizerMemory,
     bias_grad: &Vec<Array1<fmod>>,
-) -> Vec<Array1<fmod>> {
+) -> BiasUpdate {
     let eps = params[0];
     bias_grad
         .into_iter()
@@ -30,7 +30,7 @@ fn sgd_weight_update(
     params: &Vec<fmod>,
     _mem: &OptimizerMemory,
     weight_grad: &Vec<Array2<fmod>>,
-) -> Vec<Array2<fmod>> {
+) -> WeightUpdate {
     let eps = params[0];
     weight_grad
         .into_iter()

@@ -7,5 +7,6 @@ https://doc.rust-lang.org/cargo/getting-started/installation.html
 
 Alternatively, `nn1r` should be runnable on the target triple: `x86_64-unknown-linux-gnu`
 
-The Rust code trains the models and dumps some data which is later visualized in
-`conv_weight_vis.ipynb`
+With a seeded initialization everything is deterministic, and the training for the target MSE takes a bit long, so I'm also pasting the output of the program under the `main` function (in `main.rs`)
+
+The relevant momentum and RMSprop implementations are in `optimizers/`

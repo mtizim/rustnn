@@ -318,6 +318,7 @@ dependencies = [
  "ndarray-rand",
  "num",
  "prgrs",
+ "rand",
  "rayon",
 ]
 

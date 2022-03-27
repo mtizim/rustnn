@@ -1,3 +1,4 @@
+use crate::optimizers::optimizers::Optimizer;
 use crate::*;
 use std::iter::zip;
 
@@ -6,9 +7,10 @@ use ndarray_rand::rand::prelude::StdRng;
 use ndarray_rand::rand::SeedableRng;
 use ndarray_rand::rand_distr::StandardNormal;
 use ndarray_rand::RandomExt;
+use rand::prelude::SliceRandom;
 use rayon::prelude::*;
 
-pub struct MLPGradientUpdate(
+pub struct Gradients(
     pub Vec<Array2<fmod>>,
     pub Vec<Array1<fmod>>, //
 );
@@ -17,14 +19,14 @@ pub struct MultilayerPerceptron {
     pub biases: Vec<Array1<fmod>>,
     pub shape: Vec<u16>,
     pub activations: Vec<NeuronActivation>,
-    pub eps: fmod,
+    pub optimizer: Optimizer,
 }
 
 impl MultilayerPerceptron {
     pub fn new(
         shape: Vec<u16>,
         activations: Vec<NeuronActivation>,
-        eps: fmod,
+        optimizer: Optimizer,
     ) -> MultilayerPerceptron {
         let mut rng: StdRng = SeedableRng::from_seed([0u8; 32]);
 
@@ -47,7 +49,7 @@ impl MultilayerPerceptron {
             biases,
             shape,
             activations,
-            eps: eps, //TODO throw eps adjusting strategies into the constructor
+            optimizer,
         }
     }
 
@@ -63,7 +65,7 @@ impl MultilayerPerceptron {
         x.into_iter().map(|s| self.predict_sample(s)).collect()
     }
 
-    fn backprop_once(&self, x: &Array1<fmod>, y: &Array1<fmod>) -> MLPGradientUpdate {
+    fn backprop_once(&self, x: &Array1<fmod>, y: &Array1<fmod>) -> Gradients {
         let mut outputs: Vec<Array1<fmod>> = vec![x.to_owned()];
         let mut grads: Vec<Array1<fmod>> = Vec::new();
 
@@ -105,74 +107,86 @@ impl MultilayerPerceptron {
         }
         weight_deltas.reverse();
         bias_deltas.reverse();
-        MLPGradientUpdate(weight_deltas, bias_deltas)
+        Gradients(weight_deltas, bias_deltas)
     }
 
     fn train_batch(&mut self, batch: &Batch) {
-        // todo shuffle batch
         let batchsize = batch.x.len();
         assert!(batchsize == batch.y.len());
 
         let layercount = &self.shape.len() - 1;
 
-        // async update calculation
-        // it's just a map(to updates) -> reduce(sum) in principle,
+        // async gradients calculation
+        // it's just a map(to gradients) -> reduce(sum) in principle,
         // but the fold makes it a bit faster
-        let update = batch
+        let mut gradients = batch
             .x
             .into_par_iter()
             .zip(batch.y.into_par_iter())
             .fold(
                 || None,
-                |o_cumupdate, (x, y)| {
-                    let update = self.backprop_once(x, y);
-                    match o_cumupdate {
-                        None => Some(update),
-                        Some(mut cumupdate) => {
+                |o_cumgrad, (x, y)| {
+                    let grad = self.backprop_once(x, y);
+                    match o_cumgrad {
+                        None => Some(grad),
+                        Some(mut cumgrad) => {
                             for layer in 0..layercount {
-                                cumupdate.0[layer] += &update.0[layer];
-                                cumupdate.1[layer] += &update.1[layer];
+                                cumgrad.0[layer] += &grad.0[layer];
+                                cumgrad.1[layer] += &grad.1[layer];
                             }
-                            Some(cumupdate)
+                            Some(cumgrad)
                         }
                     }
                 },
             )
             .reduce(
                 || None,
-                |o_cumupdate, o_subcumupdate| {
-                    let subcumupdate = o_subcumupdate.unwrap();
-                    match o_cumupdate {
-                        None => Some(subcumupdate),
-                        Some(mut cumupdate) => {
+                |o_cumgrad, o_subcumgrad| {
+                    let subcumgrad = o_subcumgrad.unwrap();
+                    match o_cumgrad {
+                        None => Some(subcumgrad),
+                        Some(mut cumgrad) => {
                             for layer in 0..layercount {
-                                cumupdate.0[layer] += &subcumupdate.0[layer];
-                                cumupdate.1[layer] += &subcumupdate.1[layer];
+                                cumgrad.0[layer] += &subcumgrad.0[layer];
+                                cumgrad.1[layer] += &subcumgrad.1[layer];
                             }
-                            Some(cumupdate)
+                            Some(cumgrad)
                         }
                     }
                 },
             )
             .unwrap();
 
+        for layeridx in 0..layercount {
+            gradients.0[layeridx] /= batchsize as fmod;
+            gradients.1[layeridx] /= batchsize as fmod;
+        }
         // update model
-        let eps = self.eps / (batchsize as fmod);
-        for (layeridx, (wd, bd)) in zip(update.0.into_iter(), update.1.into_iter()).enumerate() {
-            self.weights[layeridx] -= &(eps * wd);
-            self.biases[layeridx] -= &(eps * bd);
+        let (weight_update, bias_update) = self.optimizer.get_updates(&gradients);
+        for (layeridx, (wd, bd)) in zip(weight_update, bias_update).enumerate() {
+            self.weights[layeridx] -= &wd;
+            self.biases[layeridx] -= &bd;
         }
     }
 
     pub fn train_epoch(&mut self, data: &DataRef, batchsize: usize) {
         assert!(data.x.len() == data.y.len());
+
+        let mut rng: StdRng = SeedableRng::from_seed([1u8; 32]);
+
+        let mut data: Vec<(Array1<fmod>, Array1<fmod>)> =
+            zip(data.x.clone(), data.y.clone()).collect();
+        data.shuffle(&mut rng);
+
+        let (datax, datay): (Vec<Array1<fmod>>, Vec<Array1<fmod>>) = data.into_iter().unzip();
+
         if batchsize == 0 {
             self.train_batch(&Batch {
-                x: data.x,
-                y: data.y,
+                x: &datax,
+                y: &datay,
             });
         } else {
-            for (xslice, yslice) in zip(data.x.chunks(batchsize), data.y.chunks(batchsize)) {
+            for (xslice, yslice) in zip(datax.chunks(batchsize), datay.chunks(batchsize)) {
                 self.train_batch(&Batch {
                     x: xslice,
                     y: yslice,
