@@ -1,5 +1,4 @@
-use std::fmt::Display;
-
+#![allow(dead_code)]
 use crate::activations::*;
 use crate::datastructs::*;
 use crate::helpers::*;
