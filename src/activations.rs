@@ -29,6 +29,23 @@ fn linear_grad<F: Float>(_f: F) -> F {
     F::one()
 }
 
+#[inline(always)]
+fn relu<F: Float>(f: F) -> F {
+    if f < F::zero() {
+        F::zero()
+    } else {
+        f
+    }
+}
+#[inline(always)]
+fn relu_grad<F: Float>(f: F) -> F {
+    if f < F::zero() {
+        F::zero()
+    } else {
+        F::one()
+    }
+}
+
 impl NeuronActivation {
     pub fn sigmoid() -> NeuronActivation {
         NeuronActivation {
@@ -40,6 +57,12 @@ impl NeuronActivation {
         NeuronActivation {
             activation: linear,
             gradient: linear_grad,
+        }
+    }
+    pub fn relu() -> NeuronActivation {
+        NeuronActivation {
+            activation: relu,
+            gradient: relu_grad,
         }
     }
 }

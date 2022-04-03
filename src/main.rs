@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::activations::*;
 use crate::datastructs::*;
 use crate::helpers::*;
@@ -18,223 +20,139 @@ mod optimizers;
 type fmod = f64;
 
 fn main() {
-    // square large
+    // easy
     {
-        {
-            // Test data has a bigger range than train data, so it can't be predicted with a low mse
-            let data_train = helpers::read_data("data/square-large-training.csv", 1);
-            let data_test = helpers::read_data("data/square-large-training.csv", 1);
-            let shape = vec![1, 5, 5, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp = MultilayerPerceptron::new(shape, activations, Optimizer::sgd(0.0001));
+        let data_train = helpers::read_data_truefalse("data/easy-training.csv", 0);
+        let data_test = helpers::read_data_truefalse("data/easy-test.csv", 0);
+        let shape = vec![2, 5, 5, 5, 2];
+        let activations = vec![
+            NeuronActivation::relu(),
+            NeuronActivation::relu(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+        ];
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (square large sgd): {mse}");
-        }
-        {
-            let data_train = helpers::read_data("data/square-large-training.csv", 1);
-            let data_test = helpers::read_data("data/square-large-training.csv", 1);
-            let shape = vec![1, 5, 5, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::momentum(0.0001, 0.9));
+        let mut mlp =
+            MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.001, 0.99), true);
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (square large momentum): {mse}");
+        let n = 5000;
+        for _ in Prgrs::new(0..n, n) {
+            mlp.train_epoch(&data_train.ref_repr(), 32);
         }
-        {
-            let data_train = helpers::read_data("data/square-large-training.csv", 1);
-            let data_test = helpers::read_data("data/square-large-training.csv", 1);
-            let shape = vec![1, 5, 5, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.1, 0.99));
-
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (square large rmsprop): {mse}");
-        }
+        let yhats = mlp.predict(&data_test.x);
+        let f1 = f1(&yhats, &data_test.y, 2);
+        println!("f1 - easy: {:?}", f1);
+        save_preds(yhats, String::from("easy"));
     }
-    // steps large
+
+    // rings3
     {
-        {
-            let data_train = helpers::read_data("data/steps-large-training.csv", 1);
-            let data_test = helpers::read_data("data/steps-large-training.csv", 1);
-            let shape = vec![1, 15, 15, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp = MultilayerPerceptron::new(shape, activations, Optimizer::sgd(0.0001));
+        let data_train = helpers::read_data_r("data/rings3-regular-training.csv", 0, 3);
+        let data_test = helpers::read_data_r("data/rings3-regular-test.csv", 0, 3);
+        let shape = vec![
+            3, //
+            16, 16, //
+            16, 16, //
+            16, 16, //
+            3,  //
+        ];
+        let activations = vec![
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+        ];
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (steps large sgd): {mse}");
-        }
-        {
-            let data_train = helpers::read_data("data/steps-large-training.csv", 1);
-            let data_test = helpers::read_data("data/steps-large-training.csv", 1);
-            let shape = vec![1, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::momentum(0.004, 0.9));
+        let mut mlp =
+            MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.001, 0.99), true);
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (steps large momentum): {mse}");
+        let n = 5000;
+        for _ in Prgrs::new(0..n, n) {
+            mlp.train_epoch(&data_train.ref_repr(), 64);
         }
-        {
-            let data_train = helpers::read_data("data/steps-large-training.csv", 1);
-            let data_test = helpers::read_data("data/steps-large-training.csv", 1);
-            let shape = vec![1, 15, 15, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.01, 0.99));
-
-            let n = 10000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (steps large rmsprop): {mse}");
-        }
+        let yhats = mlp.predict(&data_test.x);
+        let f1 = f1(&yhats, &data_test.y, 3);
+        println!("f1 - rings3: {:?}", f1);
+        save_preds(yhats, String::from("rings3"));
     }
-    // multimodal large
+
+    // xor3
+
     {
-        {
-            let data_train = helpers::read_data("data/multimodal-large-training.csv", 0);
-            let data_test = helpers::read_data("data/multimodal-large-test.csv", 0);
-            let shape = vec![1, 15, 15, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp = MultilayerPerceptron::new(shape, activations, Optimizer::sgd(0.0001));
+        let data_train = helpers::read_data_sins("data/xor3-training.csv", 0, 2);
+        let data_test = helpers::read_data_sins("data/xor3-test.csv", 0, 2);
+        let shape = vec![
+            2, //
+            16, 16, //
+            16, 16, //
+            16, 16, //
+            2,  //
+        ];
+        let activations = vec![
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+            NeuronActivation::relu(),
+            NeuronActivation::sigmoid(),
+        ];
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (multimodal large sgd): {mse}");
-        }
-        {
-            let data_train = helpers::read_data("data/multimodal-large-training.csv", 0);
-            let data_test = helpers::read_data("data/multimodal-large-test.csv", 0);
-            let shape = vec![1, 15, 15, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::momentum(0.0001, 0.9));
+        let mut mlp =
+            MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.0001, 0.99), true);
 
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (multimodal large momentum): {mse}");
+        let n = 5000;
+        for _ in Prgrs::new(0..n, n) {
+            mlp.train_epoch(&data_train.ref_repr(), 64);
         }
-        {
-            let data_train = helpers::read_data("data/multimodal-large-training.csv", 0);
-            let data_test = helpers::read_data("data/multimodal-large-test.csv", 0);
-            let shape = vec![1, 15, 15, 15, 15, 1];
-            let activations = vec![
-                NeuronActivation::sigmoid(),
-                NeuronActivation::sigmoid(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-                NeuronActivation::linear(),
-            ];
-            let mut mlp =
-                MultilayerPerceptron::new(shape, activations, Optimizer::rmsprop(0.01, 0.99));
-
-            let n = 1000;
-            for _ in Prgrs::new(0..n, n) {
-                mlp.train_epoch(&data_train.ref_repr(), 32);
-            }
-            let yhats = mlp.predict(&data_test.x);
-            let mse = mse(&yhats, &data_test.y);
-            println!("MSE (multimodal large rmsprop): {mse}");
-        }
+        let yhats = mlp.predict(&data_test.x);
+        let f1 = f1(&yhats, &data_test.y, 2);
+        println!("f1 - xor3: {:?}", f1);
+        save_preds(yhats, String::from("xor3"));
     }
 }
 
-// OUTPUT: (note that some training times differ)
-// [#############] (100%)
-// MSE (square large sgd): 3.331925435962874
-// [#############] (100%)
-// MSE (square large momentum): 0.7833461236300092
-// [#############] (100%)
-// MSE (square large rmsprop): 131.96570713797897
-//
-// [#############] (100%)
-// MSE (steps large sgd): 23.942884295272517
-// [#############] (100%)
-// MSE (steps large momentum): 6.696773729199052
-// [#############] (100%)
-// MSE (steps large rmsprop): 4.286258947173477
-//
-// [#############] (100%)
-// MSE (multimodal large sgd): 2.2324397166955285
-// [#############] (100%)
-// MSE (multimodal large momentum): 1.6712454605684703
-// [#############] (100%)
-// MSE (multimodal large rmsprop): 2.0997478106784477
+fn save_preds(preds: Vec<Array1<fmod>>, name: String) {
+    use std::fs;
+    let predictions: Vec<usize> = preds
+        .into_iter()
+        .map(|yh| {
+            yh.iter()
+                .enumerate()
+                .fold((0, 0.0), |(idx_max, val_max), (idx, val)| {
+                    if &val_max > val {
+                        (idx_max, val_max)
+                    } else {
+                        (idx, *val)
+                    }
+                })
+                .0
+        })
+        .collect();
+    let mut out = String::new();
+    for c in predictions {
+        let data = c.to_string();
+        out = out + "\n" + &data;
+    }
+    out = String::from("'c'\n") + &out;
+    fs::write(name, out).expect("ok");
+}
+
+// OUTPUTS:
+// [###########] (100%)
+// [0.7310585786300049, 0.2689414213699951]
+// f1 - easy: [0.994012, 0.993988]
+// [###########] (100%)
+// [0.21194155761663241, 0.21194155761877007, 0.5761168847645975]
+// f1 - rings3: [0.95035464, 0.94304633, 0.94160587]
+// [###########] (100%)
+// [0.7309826937861038, 0.26901730621389613]
+// f1 - xor3: [0.9685315, 0.9579439]
+
+// WRITES FILES:
+// xor3
+// rings3
+// easy

@@ -20,6 +20,7 @@ pub struct MultilayerPerceptron {
     pub shape: Vec<u16>,
     pub activations: Vec<NeuronActivation>,
     pub optimizer: Optimizer,
+    softmaxed: bool,
 }
 
 impl MultilayerPerceptron {
@@ -27,6 +28,7 @@ impl MultilayerPerceptron {
         shape: Vec<u16>,
         activations: Vec<NeuronActivation>,
         optimizer: Optimizer,
+        softmaxed: bool,
     ) -> MultilayerPerceptron {
         let mut rng: StdRng = SeedableRng::from_seed([0u8; 32]);
 
@@ -50,6 +52,7 @@ impl MultilayerPerceptron {
             shape,
             activations,
             optimizer,
+            softmaxed,
         }
     }
 
@@ -58,6 +61,9 @@ impl MultilayerPerceptron {
 
         for (w, b, activation) in izip!(&self.weights, &self.biases, &self.activations) {
             x_layer = (w.t().dot(&x_layer) + b).mapv(activation.activation);
+        }
+        if self.softmaxed {
+            x_layer = softmax(&x_layer);
         }
         x_layer.to_owned()
     }
@@ -85,13 +91,23 @@ impl MultilayerPerceptron {
             }
         }
 
-        let errs = &outputs[self.shape.len() - 1] - y;
-        let mut current_layer_errs: Array1<fmod> = &grads[self.shape.len() - 2] * errs;
+        let lastlayeridx = self.shape.len() - 1;
+
+        let mut current_layer_errs = if self.softmaxed {
+            let outputs = &outputs[lastlayeridx];
+            let outputs_softmaxed = softmax(&outputs);
+            let cel_errs = outputs_softmaxed - y;
+
+            &grads[lastlayeridx - 1] * cel_errs
+        } else {
+            let errs = &outputs[lastlayeridx] - y;
+            &grads[lastlayeridx - 1] * errs
+        };
 
         let mut weight_deltas: Vec<Array2<fmod>> = Vec::new();
         let mut bias_deltas: Vec<Array1<fmod>> = Vec::new();
 
-        for layeridx in (0..=self.shape.len() - 2).rev() {
+        for layeridx in (0..=lastlayeridx - 1).rev() {
             let errs2d = into_col(current_layer_errs.to_owned());
             let outs2d = into_col(outputs[layeridx].to_owned());
             let weight_deltas_ = outs2d.dot(&errs2d.t());
@@ -194,4 +210,15 @@ impl MultilayerPerceptron {
             }
         }
     }
+}
+
+fn softmax(x: &Array1<fmod>) -> Array1<fmod> {
+    let e = fmod::from(std::f64::consts::E);
+    let max = x
+        .into_iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .expect("nonempty");
+
+    let exps = (&x).mapv(|v| e.powf(v - max));
+    &exps / (&exps).sum()
 }
