@@ -29,21 +29,23 @@ fn linear_grad<F: Float>(_f: F) -> F {
     F::one()
 }
 
+// branchless
 #[inline(always)]
-fn relu<F: Float>(f: F) -> F {
-    if f < F::zero() {
-        F::zero()
-    } else {
-        f
-    }
+fn relu(f: fmod) -> fmod {
+    (f.abs() + f) / 2.0
 }
 #[inline(always)]
-fn relu_grad<F: Float>(f: F) -> F {
-    if f < F::zero() {
-        F::zero()
-    } else {
-        F::one()
-    }
+fn relu_grad(f: fmod) -> fmod {
+    let sgn = f.signum();
+    (sgn.abs() + sgn) / 2.0
+}
+#[inline(always)]
+fn tanh<F: Float>(f: F) -> F {
+    f.tanh()
+}
+#[inline(always)]
+fn tanh_grad<F: Float>(f: F) -> F {
+    F::one() - f.powi(2)
 }
 
 impl NeuronActivation {
@@ -63,6 +65,12 @@ impl NeuronActivation {
         NeuronActivation {
             activation: relu,
             gradient: relu_grad,
+        }
+    }
+    pub fn tanh() -> NeuronActivation {
+        NeuronActivation {
+            activation: tanh,
+            gradient: tanh_grad,
         }
     }
 }

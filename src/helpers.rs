@@ -77,6 +77,23 @@ pub fn read_data_truefalse<P: AsRef<std::path::Path>>(path: P, startidx: usize) 
     }
     Data { x: xs, y: ys }
 }
+pub fn read_data_reg<P: AsRef<std::path::Path>>(path: P, startidx: usize) -> Data {
+    let mut reader = csv::Reader::from_path(path).expect("Path existence");
+
+    let mut xs = Vec::new();
+    let mut ys = Vec::new();
+
+    for result in reader.records() {
+        let record = result.expect("a CSV record");
+
+        let cx = (&record[startidx]).parse().expect("Formatting");
+        let cy = (&record[startidx + 1]).parse().expect("Formatting");
+
+        xs.push(arr1(&[cx]));
+        ys.push(arr1(&[cy]));
+    }
+    Data { x: xs, y: ys }
+}
 
 pub fn mse(yhats: &Vec<Array1<fmod>>, ys: &Vec<Array1<fmod>>) -> fmod {
     //! assumes 1-element vectors for now
@@ -108,8 +125,6 @@ pub fn f1(yhats: &Vec<Array1<fmod>>, ys: &Vec<Array1<fmod>>, classes: u32) -> Ve
             yhclassed
         })
         .collect();
-    let x = &yhats[0];
-    println!("{x}");
     let f1s: Vec<f32> = (0..classes)
         .map(|i| {
             let c = i as usize;
